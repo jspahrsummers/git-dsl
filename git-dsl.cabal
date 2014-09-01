@@ -3,7 +3,7 @@
 
 name:                git-dsl
 version:             0.1.0.0
-synopsis:            An EDSL for performing Git operations
+synopsis:            An EDSL for describing Git operations in Haskell
 -- description:
 homepage:            https://github.com/jspahrsummers/git-dsl.git
 license:             MIT
@@ -16,8 +16,8 @@ build-type:          Simple
 -- extra-source-files:
 cabal-version:       >=1.10
 
-executable git-dsl
-  main-is: Main.hs
+library
+  exposed-modules:     
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.7 && <4.8
