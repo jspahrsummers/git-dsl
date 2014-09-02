@@ -2,6 +2,12 @@
 {-# LANGUAGE StandaloneDeriving #-}
 
 module DSL ( Expr(..)
+           , Configuration
+           , DSL.String
+           , Array
+           , Remote
+           , Progress
+           , Branch
            ) where
 
 import Data.Monoid
