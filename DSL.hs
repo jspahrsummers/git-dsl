@@ -34,22 +34,6 @@ data Expr a where
 
 deriving instance Show (Expr a)
 
-generate :: Expr a -> Prelude.String
-generate (Sequence a b) = "[" ++ generate a ++ " then:^{ return " ++ generate b ++ "; }]"
-generate (Inject a b) = "[" ++ generate a ++ " concat:[" ++ generate b ++ " ignoreValues]]"
-generate LoadConfig = "[self loadConfiguration]"
-generate (ReadConfigKey key config) = "[RACSignal zip:@[ " ++ generate key ++ ", " ++ generate config ++ " ] reduce:^(NSString *key, GTConfiguration *configuration) { return [configuration stringForKey:key]; }]"
-generate (ListRemotes config) = "[" ++ generate config ++ " map:^(GTConfiguration *configuration) { return configuration.remotes; }]"
--- TODO: Error if there are no remotes.
-generate (DefaultRemote remotes) = "[" ++ generate remotes ++ " map:^(NSArray *remotes) { return remotes.firstObject; }]"
-generate (Fetch remote) = "[" ++ generate remote ++ " flattenMap:^(GTRemote *remote) { return [self trackFetchProgressWithArguments:@[ @\"fetch\", @\"--progress\", @\"--prune\", @\"--recurse-submodules=on-demand\", remote.name ]]; }]"
-generate CurrentBranch = "[self currentBranch]"
--- TODO: Take advantage of the signal stream.
-generate LocalBranches = "[[self localBranches] collect]"
-generate (SkipElement element array) = "[RACSignal zip:@[ " ++ generate array ++ ", " ++ generate element ++ " ] reduce:^(NSArray *array, id element) { return [array mtl_arrayByRemovingObject:element]; }]"
--- TODO
-generate (FastForwardBranches branches) = undefined
-
 fetchFromRemote :: Expr Progress
 fetchFromRemote =
     let defaultRemote :: Expr Remote

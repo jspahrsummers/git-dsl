@@ -17,7 +17,7 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     DSL
+  exposed-modules:     DSL Generator Generator.ObjectiveC
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.7 && <4.8
