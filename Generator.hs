@@ -4,4 +4,4 @@ module Generator ( Generator(..)
 import qualified DSL
 
 class Generator g where
-    generate :: g -> DSL.Expr a -> Maybe String
+    generate :: g -> DSL.Expr () a -> Maybe String

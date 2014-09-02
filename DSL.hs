@@ -1,3 +1,4 @@
+{-# LANGUAGE Arrows #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
@@ -10,6 +11,8 @@ module DSL ( Expr(..)
            , Branch
            ) where
 
+import Control.Arrow
+import Control.Category
 import Data.Monoid
 
 data Configuration
@@ -19,26 +22,35 @@ data Remote
 data Progress
 data Branch
 
-data Expr a where
-    Sequence :: Expr a -> Expr b -> Expr b
-    Inject :: Expr a -> Expr b -> Expr a
-    LoadConfig :: Expr Configuration
-    ReadConfigKey :: Expr DSL.String -> Expr Configuration -> Expr DSL.String
-    ListRemotes :: Expr Configuration -> Expr (Array Remote)
-    DefaultRemote :: Expr (Array Remote) -> Expr Remote
-    Fetch :: Expr Remote -> Expr Progress
-    CurrentBranch :: Expr Branch
-    LocalBranches :: Expr (Array Branch)
-    SkipElement :: Expr a -> Expr (Array a) -> Expr (Array a)
-    FastForwardBranches :: Expr (Array Branch) -> Expr ()
+data Expr a b where
+    Immediate :: (a -> b) -> Expr a b
+    Sequence :: Expr a b -> Expr b c -> Expr a c
+    ApplyFirst :: Expr a b -> Expr (a, c) (b, c)
+    Inject :: Expr a b -> Expr () () -> Expr a b
+    LoadConfig :: Expr () Configuration
+    ReadConfigKey :: Expr (DSL.String, Configuration) DSL.String
+    ListRemotes :: Expr Configuration (Array Remote)
+    DefaultRemote :: Expr (Array Remote) Remote
+    Fetch :: Expr Remote Progress
+    CurrentBranch :: Expr () Branch
+    LocalBranches :: Expr () (Array Branch)
+    SkipElement :: Expr (a, Array a) (Array a)
+    FastForwardBranches :: Expr (Array Branch) ()
 
-deriving instance Show (Expr a)
+instance Category Expr where
+    id = Immediate Prelude.id
+    b . a = Sequence a b
 
-fetchFromRemote :: Expr Progress
-fetchFromRemote =
-    let defaultRemote :: Expr Remote
-        defaultRemote = DefaultRemote $ ListRemotes LoadConfig
+instance Arrow Expr where
+    arr f = Immediate f
+    first expr = ApplyFirst expr
 
-        branchesWithoutCurrent :: Expr (Array Branch)
-        branchesWithoutCurrent = SkipElement CurrentBranch LocalBranches
-    in Inject (Fetch defaultRemote) (FastForwardBranches branchesWithoutCurrent)
+fetchFromRemote :: Expr () Progress
+fetchFromRemote = proc _ -> do
+    defaultRemote <- LoadConfig >>> ListRemotes >>> DefaultRemote -< ()
+    branchesWithoutCurrent <- SkipElement <<< (CurrentBranch &&& LocalBranches) -< ()
+
+    progress <- Fetch -< defaultRemote
+    FastForwardBranches -< branchesWithoutCurrent
+
+    returnA -< progress

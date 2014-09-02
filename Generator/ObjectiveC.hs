@@ -9,6 +9,8 @@ import Generator
 data ObjectiveC = ObjectiveC
 
 instance Generator ObjectiveC where
+    generate g (Immediate f) = 
+
     generate g (Sequence a b) = do
         ga <- generate g a
         gb <- generate g b
