@@ -1,6 +1,4 @@
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 
 module Expr ( Expr(..)
             ) where
@@ -13,34 +11,45 @@ data Configuration
 data String
 data Array a
 data Remote
+data Progress
+data Branch
 
 data Expr a where
-    Value :: Exportable a => a -> Expr a
+    StringLiteral :: Prelude.String -> Expr String
+    Sequence :: Expr a -> Expr b -> Expr b
+    Inject :: Expr a -> Expr b -> Expr a
     LoadConfig :: Expr Configuration
-    ReadConfigKey :: Expr Configuration -> Expr String
+    ReadConfigKey :: Expr String -> Expr Configuration -> Expr String
     ListRemotes :: Expr Configuration -> Expr (Array Remote)
+    DefaultRemote :: Expr (Array Remote) -> Expr Remote
+    Fetch :: Expr Remote -> Expr Progress
+    CurrentBranch :: Expr Branch
+    LocalBranches :: Expr (Array Branch)
+    SkipElement :: Expr a -> Expr (Array a) -> Expr (Array a)
+    FastForwardBranches :: Expr (Array Branch) -> Expr ()
 
-newtype Exported a = Exported Prelude.String
+generate :: Expr a -> Prelude.String
+generate (StringLiteral str) = "[RACSignal return:@\"" ++ str ++ "\"]"
+generate (Sequence a b) = "[" ++ generate a ++ " then:^{ return " ++ generate b ++ "; }]"
+generate (Inject a b) = "[" ++ generate a ++ " concat:[" ++ generate b ++ " ignoreValues]]"
+generate LoadConfig = "[self loadConfiguration]"
+generate (ReadConfigKey key config) = "[RACSignal zip:@[ " ++ generate key ++ ", " ++ generate config ++ " ] reduce:^(NSString *key, GTConfiguration *configuration) { return [configuration stringForKey:key]; }]"
+generate (ListRemotes config) = "[" ++ generate config ++ " map:^(GTConfiguration *configuration) { return configuration.remotes; }]"
+-- TODO: Error if there are no remotes.
+generate (DefaultRemote remotes) = "[" ++ generate remotes ++ " map:^(NSArray *remotes) { return remotes.firstObject; }]"
+generate (Fetch remote) = "[" ++ generate remote ++ " flattenMap:^(GTRemote *remote) { return [self trackFetchProgressWithArguments:@[ @\"fetch\", @\"--progress\", @\"--prune\", @\"--recurse-submodules=on-demand\", remote.name ]]; }]"
+generate CurrentBranch = "[self currentBranch]"
+-- TODO: Take advantage of the signal stream.
+generate LocalBranches = "[[self localBranches] collect]"
+generate (SkipElement element array) = "[RACSignal zip:@[ " ++ generate array ++ ", " ++ generate element ++ " ] reduce:^(NSArray *array, id element) { return [array mtl_arrayByRemovingObject:element]; }]"
+-- TODO
+generate (FastForwardBranches branches) = undefined
 
-instance Functor Exported where
-    fmap f (Exported str) = Exported $ f str
+fetchFromRemote :: Expr Progress
+fetchFromRemote =
+    let defaultRemote :: Expr Remote
+        defaultRemote = DefaultRemote $ ListRemotes LoadConfig
 
-instance Monoid Exported where
-    mempty = Exported mempty
-    mappend a b = Exported $ mappend a b
-
-class Exportable a where
-    export :: a -> Exported a
-
-instance Exportable Integer where
-    export n = Exported $ "[RACSignal return:@(" ++ show n ++ ")]"
-
-instance Exportable Double where
-    export n = Exported $ "[RACSignal return:@(" ++ show n ++ ")]"
-
-instance Exportable Prelude.String where
-    export str = Exported $ "[RACSignal return:@\"" ++ str ++ "\"]"
-
-generate :: Expr a -> Exported a
-generate (Value v) = export v
-generate LoadConfig = 
+        branchesWithoutCurrent :: Expr (Array Branch)
+        branchesWithoutCurrent = SkipElement CurrentBranch LocalBranches
+    in Inject (Fetch defaultRemote) (FastForwardBranches branchesWithoutCurrent)
