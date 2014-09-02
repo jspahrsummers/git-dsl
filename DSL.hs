@@ -1,11 +1,10 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
-module Expr ( Expr(..)
-            ) where
+module DSL ( Expr(..)
+           ) where
 
 import Data.Monoid
-import Prelude hiding (String)
-import qualified Prelude (String)
 
 data Configuration
 data String
@@ -15,11 +14,10 @@ data Progress
 data Branch
 
 data Expr a where
-    StringLiteral :: Prelude.String -> Expr String
     Sequence :: Expr a -> Expr b -> Expr b
     Inject :: Expr a -> Expr b -> Expr a
     LoadConfig :: Expr Configuration
-    ReadConfigKey :: Expr String -> Expr Configuration -> Expr String
+    ReadConfigKey :: Expr DSL.String -> Expr Configuration -> Expr DSL.String
     ListRemotes :: Expr Configuration -> Expr (Array Remote)
     DefaultRemote :: Expr (Array Remote) -> Expr Remote
     Fetch :: Expr Remote -> Expr Progress
@@ -28,8 +26,9 @@ data Expr a where
     SkipElement :: Expr a -> Expr (Array a) -> Expr (Array a)
     FastForwardBranches :: Expr (Array Branch) -> Expr ()
 
+deriving instance Show (Expr a)
+
 generate :: Expr a -> Prelude.String
-generate (StringLiteral str) = "[RACSignal return:@\"" ++ str ++ "\"]"
 generate (Sequence a b) = "[" ++ generate a ++ " then:^{ return " ++ generate b ++ "; }]"
 generate (Inject a b) = "[" ++ generate a ++ " concat:[" ++ generate b ++ " ignoreValues]]"
 generate LoadConfig = "[self loadConfiguration]"
