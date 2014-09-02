@@ -5,21 +5,24 @@
 module Expr ( Expr(..)
             ) where
 
-import Control.Category
---import Control.Monad.Trans.State.Strict
+import Prelude ()
 
 data Configuration
-data ConfigValue
-data RemoteList
-data Repository = Repository
+data String
 
-data Expr a b where
-    Empty :: Expr () ()
-    StringExpr :: String -> Expr () String
-    Identity :: Expr a a
-    Compose :: Expr a b -> Expr b c -> Expr a c
-    GetRepository :: Expr () Repository
-    GetConfiguration :: Expr Repository Configuration
+data Expr a where
+    Value :: a -> Expr a
+    LoadConfig :: Expr Configuration
+    ReadConfigKey :: Expr Configuration -> Expr String
+
+
+instance Functor Expr where
+    fmap f (Value a) = Value $ f a
+    fmap f GetRepository = Value $ f Repository
+    fmap f GetConfiguration =
+
+forGreatJustice :: Expr Configuration
+forGreatJustice = GetRepository *> GetConfiguration
 
 instance Category Expr where
     id = Identity
