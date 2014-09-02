@@ -32,13 +32,31 @@ data Expr a where
     SkipElement :: Expr a -> Expr (Array a) -> Expr (Array a)
     FastForwardBranches :: Expr (Array Branch) -> Expr ()
 
+infixr 0 <*
+infixr 0 *>
+infixl 8 >-
+infixr 8 -<
+
+(*>) :: Expr a -> Expr b -> Expr b
+(*>) = Sequence
+
+(<*) :: Expr a -> Expr b -> Expr a
+(<*) = Inject
+
+(>-) :: Expr a -> (Expr a -> Expr b) -> Expr b
+a >- f = f a
+
+(-<) = flip (>-)
+
 deriving instance Show (Expr a)
 
 fetchFromRemote :: Expr Progress
 fetchFromRemote =
-    let defaultRemote :: Expr Remote
-        defaultRemote = DefaultRemote $ ListRemotes LoadConfig
-
-        branchesWithoutCurrent :: Expr (Array Branch)
-        branchesWithoutCurrent = SkipElement CurrentBranch LocalBranches
-    in Inject (Fetch defaultRemote) (FastForwardBranches branchesWithoutCurrent)
+    let fastForward = LocalBranches
+                        >- SkipElement CurrentBranch
+                        >- FastForwardBranches
+    in LoadConfig
+        >- ListRemotes
+        >- DefaultRemote
+        >- Fetch
+        <* fastForward
